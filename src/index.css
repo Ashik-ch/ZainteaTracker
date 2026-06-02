@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+
+  body {
+    @apply bg-[#0f0d0b] text-stone-100 font-body antialiased;
+    background-image: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(212,116,10,0.08), transparent);
+  }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-stone-700 rounded-full; }
+}
+
+@layer components {
+  .card {
+    @apply bg-[#1c1812] border border-stone-800/60 rounded-2xl;
+  }
+  .card-glow {
+    @apply bg-[#1c1812] border border-brand-500/20 rounded-2xl shadow-lg;
+    box-shadow: 0 0 0 1px rgba(212,116,10,0.1), 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .btn-primary {
+    @apply bg-brand-500 hover:bg-brand-400 text-white font-display font-semibold
+           px-5 py-2.5 rounded-xl transition-all duration-200 text-sm
+           active:scale-95 shadow-md shadow-brand-900/40;
+  }
+  .btn-ghost {
+    @apply text-stone-400 hover:text-stone-100 hover:bg-stone-800/60
+           px-4 py-2 rounded-xl transition-all duration-200 text-sm font-body;
+  }
+  .input-field {
+    @apply bg-[#252018] border border-stone-700/60 rounded-xl px-4 py-2.5
+           text-stone-100 placeholder-stone-600 text-sm font-body
+           focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
+           transition-all duration-200 w-full;
+  }
+  .select-field {
+    @apply bg-[#252018] border border-stone-700/60 rounded-xl px-4 py-2.5
+           text-stone-100 text-sm font-body
+           focus:outline-none focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/30
+           transition-all duration-200 w-full;
+  }
+  .label {
+    @apply text-xs font-display font-medium text-stone-500 uppercase tracking-wider mb-1.5 block;
+  }
+  .stat-value {
+    @apply font-display font-bold text-2xl text-stone-100;
+  }
+  .stat-label {
+    @apply text-xs font-body text-stone-500 mt-1;
+  }
+  .badge-green {
+    @apply text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-body;
+  }
+  .badge-red {
+    @apply text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-2.5 py-0.5 rounded-full font-body;
+  }
+  .badge-amber {
+    @apply text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-body;
+  }
+  .section-title {
+    @apply font-display font-bold text-xl text-stone-100;
+  }
+  .nav-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-stone-400
+           hover:text-stone-100 hover:bg-stone-800/40 transition-all duration-200
+           font-body text-sm cursor-pointer;
+  }
+  .nav-link.active {
+    @apply text-brand-400 bg-brand-500/10 border border-brand-500/20;
+  }
+  .table-row {
+    @apply border-b border-stone-800/50 hover:bg-stone-800/20 transition-colors duration-150;
+  }
+  .table-th {
+    @apply text-xs font-display font-medium text-stone-500 uppercase tracking-wider py-3 px-4 text-left;
+  }
+  .table-td {
+    @apply text-sm font-body text-stone-300 py-3 px-4;
+  }
+}
