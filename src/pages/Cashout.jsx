@@ -275,7 +275,7 @@ export default function Cashout() {
         <div className="flex-shrink-0 pt-1">
           <button
             className={`btn-primary flex items-center gap-2 ${!isActiveMonth ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={!isActiveMonth || activeConfirmed}
+            
             onClick={() => setDrawerOpen(true)}
             type="button"
           >
@@ -530,7 +530,7 @@ export default function Cashout() {
                   disabled={activeConfirmed}
                   onChange={(e) => setDrawerForm((prev) => ({ ...prev, notes: e.target.value }))}
                 />
-              </div>     
+              </div>
 
               <div className="pt-2 flex items-center justify-end gap-3">
                 <button className="btn-ghost" onClick={() => setDrawerOpen(false)} type="button" disabled={false}>
