@@ -13,7 +13,7 @@ import {
   saveDailyDoc
 } from '../firebase'
 
-const defaultCategories = ['Supplier', 'Utilities', 'Salary', 'Rent', 'Misc']
+const defaultCategories = []
 
 const pad = (n) => String(n).padStart(2, '0')
 const toDateKeyLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -58,6 +58,9 @@ export default function Cashout() {
         const fbMatrix = await fetchMatrix()
         const fbDaily = await fetchDaily()
 
+        console.log("fbCategories", fbCategories);
+        console.log("fbMatrix", fbMatrix);
+        console.log("fbDaily", fbDaily);
         if (fbCategories) {
           setCategories(fbCategories)
         } else {
