@@ -6,6 +6,7 @@ import {
   Coffee
 } from 'lucide-react'
 import { clsx } from '../utils/format'
+import packageJson from '../../package.json'
 
 const NAV = [
   { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -52,7 +53,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-4 py-5 border-t border-stone-800/60">
         <p className="text-xs font-body text-stone-700">
-          © 2024 ZAINTEA<br />All rights reserved
+          © 2026 ZAINTEA<br />All rights reserved {packageJson.version}
         </p>
       </div>
     </nav>
