@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { format, parseISO, subDays } from 'date-fns'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Plus, X, Loader2 } from 'lucide-react'
 import { fmtAED } from '../utils/format'
 import { useBusiness } from '../context/BusinessContext'
+import {
+  isFirebaseEnabled,
+  fetchCategories,
+  saveCategories,
+  fetchMatrix,
+  saveMatrixDoc,
+  fetchDaily,
+  saveDailyDoc
+} from '../firebase'
 
 const defaultCategories = ['Supplier', 'Utilities', 'Salary', 'Rent', 'Misc']
 
@@ -27,70 +36,46 @@ export default function Cashout() {
 
   const [activeDate] = useState(settlementDate())
   const [selectedMonth, setSelectedMonth] = useState(() => settlementDate().slice(0, 7))
+  const [loading, setLoading] = useState(isFirebaseEnabled())
 
-  const [categories, setCategories] = useState(() => {
-    try {
-      const saved = localStorage.getItem('zaintea_cashout_categories')
-      return saved ? JSON.parse(saved) : defaultCategories
-    } catch {
-      return defaultCategories
-    }
-  })
+  const [categories, setCategories] = useState(defaultCategories)
 
   // matrix: { [dateKey]: { [category]: { amount: number, notes: string } } }
-  const [matrix, setMatrix] = useState(() => {
-    try {
-      const raw = localStorage.getItem('zaintea_cashout_matrix')
-      if (raw) {
-        const parsed = JSON.parse(raw) || {}
-        // Normalize older shapes where category value was a number/string.
-        const normalized = {}
-        for (const [date, byCategory] of Object.entries(parsed)) {
-          normalized[date] = {}
-          for (const [cat, v] of Object.entries(byCategory || {})) {
-            if (v && typeof v === 'object') {
-              normalized[date][cat] = {
-                amount: parseMoney(v.amount),
-                notes: (v.notes ?? '').toString(),
-              }
-            } else {
-              normalized[date][cat] = { amount: parseMoney(v), notes: '' }
-            }
-          }
-        }
-        return normalized
-      }
-
-      // Legacy conversion: zaintea_cashouts = [{date, category, amount, notes?}, ...]
-      const legacy = localStorage.getItem('zaintea_cashouts')
-      if (!legacy) return {}
-      const parsedLegacy = JSON.parse(legacy) || []
-      const normalized = {}
-      parsedLegacy.forEach((r) => {
-        if (!r?.date || !r?.category) return
-        if (!normalized[r.date]) normalized[r.date] = {}
-        normalized[r.date][r.category] = {
-          amount: parseMoney(r.amount),
-          notes: (r.notes ?? '').toString(),
-        }
-      })
-      return normalized
-    } catch {
-      return {}
-    }
-  })
+  const [matrix, setMatrix] = useState({})
 
   // daily: { [dateKey]: { cash: number|string, card: number|string, confirmed: boolean } }
-  const [daily, setDaily] = useState(() => {
-    try {
-      const raw = localStorage.getItem('zaintea_cashout_daily')
-      if (!raw) return {}
-      const parsed = JSON.parse(raw) || {}
-      return parsed
-    } catch {
-      return {}
+  const [daily, setDaily] = useState({})
+
+  useEffect(() => {
+    if (!isFirebaseEnabled()) {
+      setLoading(false)
+      return
     }
-  })
+
+    const loadFirebaseData = async () => {
+      try {
+        const fbCategories = await fetchCategories()
+        const fbMatrix = await fetchMatrix()
+        const fbDaily = await fetchDaily()
+
+        if (fbCategories) {
+          setCategories(fbCategories)
+        } else {
+          await saveCategories(defaultCategories)
+          setCategories(defaultCategories)
+        }
+
+        if (fbMatrix) setMatrix(fbMatrix)
+        if (fbDaily) setDaily(fbDaily)
+      } catch (err) {
+        console.error('Error fetching data from Firestore:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadFirebaseData()
+  }, [])
 
   const activeConfirmed = !!daily?.[activeDate]?.confirmed
 
@@ -99,18 +84,6 @@ export default function Cashout() {
   const [drawerErrors, setDrawerErrors] = useState({})
 
   const [newCategory, setNewCategory] = useState('')
-
-  useEffect(() => {
-    localStorage.setItem('zaintea_cashout_categories', JSON.stringify(categories))
-  }, [categories])
-
-  useEffect(() => {
-    localStorage.setItem('zaintea_cashout_matrix', JSON.stringify(matrix))
-  }, [matrix])
-
-  useEffect(() => {
-    localStorage.setItem('zaintea_cashout_daily', JSON.stringify(daily))
-  }, [daily])
 
   const allDatesForMonths = useMemo(() => {
     const d1 = Object.keys(matrix || {})
@@ -158,7 +131,7 @@ export default function Cashout() {
   const cardForDay = (dateKey) => parseMoney(daily?.[dateKey]?.card)
   const totalSaleForDay = (dateKey) => cardForDay(dateKey) + cashForDay(dateKey) - expenseTotalForDay(dateKey)
 
-  const canEditActive = isActiveMonth && !activeConfirmed
+  const canEditActive = (isActiveMonth && !activeConfirmed)
 
   const resetDrawer = () => {
     setDrawerErrors({})
@@ -180,7 +153,11 @@ export default function Cashout() {
     if (!trimmed) return
     const exists = categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())
     if (exists) return
-    setCategories((prev) => [...prev, trimmed])
+    const nextCategories = [...categories, trimmed]
+    setCategories(nextCategories)
+    if (isFirebaseEnabled()) {
+      saveCategories(nextCategories)
+    }
     setNewCategory('')
     setDrawerForm((prev) => ({ ...prev, category: trimmed }))
   }
@@ -200,11 +177,13 @@ export default function Cashout() {
 
     const amount = parseFloat(drawerForm.amount)
     const notes = drawerForm.notes.trim()
+    const updatedEntry = { amount, notes }
+    console.log("updatedEntry", updatedEntry);
 
     setMatrix((prev) => {
       const next = { ...prev }
       if (!next[activeDate]) next[activeDate] = {}
-      next[activeDate][drawerForm.category] = { amount, notes }
+      next[activeDate][drawerForm.category] = updatedEntry
       return next
     })
 
@@ -212,7 +191,7 @@ export default function Cashout() {
     setNewCategory('')
   }
 
-  const confirmActiveSettlement = () => {
+  const confirmActiveSettlement = async () => {
     const cash = daily?.[activeDate]?.cash
     const card = daily?.[activeDate]?.card
     const cashN = parseMoney(cash)
@@ -228,21 +207,65 @@ export default function Cashout() {
       return
     }
 
+    const confirmedDoc = {
+      ...(daily?.[activeDate] || {}),
+      cash: cashN,
+      card: cardN,
+      confirmed: true,
+    }
+
     setDaily((prev) => ({
       ...prev,
-      [activeDate]: {
-        ...(prev?.[activeDate] || {}),
-        cash: cashN,
-        card: cardN,
-        confirmed: true,
-      },
+      [activeDate]: confirmedDoc,
     }))
+
+    console.log(":categories", categories);
+
+    if (isFirebaseEnabled()) {
+      setLoading(true)
+      try {
+        await saveDailyDoc(activeDate, confirmedDoc)
+
+        const activeMatrixData = matrix[activeDate] || {}
+        await saveMatrixDoc(activeDate, activeMatrixData)
+
+        await saveCategories(categories)
+
+        console.log('Firebase upload successful for date:', activeDate)
+
+        // Refetch all and list again
+        const fbCategories = await fetchCategories()
+        const fbMatrix = await fetchMatrix()
+        const fbDaily = await fetchDaily()
+
+        if (fbCategories) setCategories(fbCategories)
+        if (fbMatrix) setMatrix(fbMatrix)
+        if (fbDaily) setDaily(fbDaily)
+      } catch (err) {
+        console.error('Error uploading settlement to Firebase:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  const handleDailyBlur = (dateKey) => {
+    // No-op for now. All data is committed on Confirm Settlement.
   }
 
   const showLockedBadge = (dateKey) => {
     if (dateKey !== activeDate) return { label: 'Locked', cls: 'bg-stone-800 text-stone-300' }
     if (activeConfirmed) return { label: 'Confirmed', cls: 'bg-emerald-900/40 text-emerald-300' }
     return { label: 'Open', cls: 'bg-amber-900/30 text-amber-300' }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
+        <p className="text-sm font-body text-stone-500 animate-pulse">Loading cashout data from Firestore...</p>
+      </div>
+    )
   }
 
   return (
@@ -275,7 +298,7 @@ export default function Cashout() {
         <div className="flex-shrink-0 pt-1">
           <button
             className={`btn-primary flex items-center gap-2 ${!isActiveMonth ? 'opacity-50 cursor-not-allowed' : ''}`}
-            
+
             onClick={() => setDrawerOpen(true)}
             type="button"
           >
@@ -360,11 +383,11 @@ export default function Cashout() {
               <tr className="table-row">
                 <td className="table-td sticky left-0 bg-[#17140e] text-stone-400 font-medium">Cash</td>
                 {daysInMonth.map((dateKey) => {
-                  const locked = dateKey !== activeDate || activeConfirmed
+                  const locked = (dateKey !== activeDate || activeConfirmed)
                   const val = daily?.[dateKey]?.cash ?? ''
                   return (
                     <td key={`cash-${dateKey}`} className="table-td text-right">
-                      {dateKey === activeDate ? (
+                      {(dateKey === activeDate) ? (
                         <input
                           type="number"
                           className="input-field py-1.5 text-xs text-right font-mono"
@@ -381,6 +404,7 @@ export default function Cashout() {
                               },
                             }))
                           }}
+                          onBlur={() => handleDailyBlur(dateKey)}
                         />
                       ) : (
                         <span className="font-mono text-stone-300">
@@ -404,25 +428,7 @@ export default function Cashout() {
                   const val = daily?.[dateKey]?.card ?? ''
                   return (
                     <td key={`card-${dateKey}`} className="table-td text-right">
-                      {dateKey === activeDate ? (
-                        <input
-                          type="number"
-                          className="input-field py-1.5 text-xs text-right font-mono"
-                          placeholder="0"
-                          value={val}
-                          disabled={locked}
-                          onChange={(e) => {
-                            const nextVal = e.target.value
-                            setDaily((prev) => ({
-                              ...prev,
-                              [dateKey]: {
-                                ...(prev?.[dateKey] || { confirmed: false }),
-                                card: nextVal,
-                              },
-                            }))
-                          }}
-                        />
-                      ) : (
+                      {(
                         <span className="font-mono text-stone-300">
                           {daily?.[dateKey]?.card !== undefined && daily?.[dateKey]?.card !== '' ? fmtAED(parseMoney(daily?.[dateKey]?.card)) : '-'}
                         </span>
